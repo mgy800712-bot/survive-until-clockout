@@ -208,9 +208,18 @@
   #promo{height:min(calc(100dvh - 165px),calc(100vh - 165px),1000px);min-height:200px;
     width:auto;max-width:100%;aspect-ratio:504/1048;object-fit:contain;
     border-radius:13px;background:#000;border:2px solid #47d8ff55;box-shadow:0 8px 26px #000b}
-  #btnSound{display:none;margin:8px 0 0;padding:5px 14px;font-size:12px;font-weight:800;border-radius:999px;
-    background:#ffffff14;border:1px solid #ffffff3d;color:#cfe4f2;cursor:pointer;font-family:inherit}
-  #btnSound:active{transform:translateY(1px)}
+  #promoBox{position:relative;display:flex;justify-content:center;max-width:100%}
+  /* 자동재생이 막혔을 때만 뜨는 탭 안내 (영상 위를 덮는다) */
+  #tapPlay{display:none;position:absolute;inset:0;width:100%;height:100%;z-index:2;
+    flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    background:#020610e0;border:0;border-radius:13px;cursor:pointer;
+    color:#fff;font-family:inherit;font-weight:900;font-size:clamp(13px,3.8vw,16px);
+    text-shadow:0 2px 6px #000,0 0 14px #000}
+  #tapPlay.on{display:flex}
+  #tapPlay i{font-style:normal;font-size:2.6em;line-height:1;color:#ffd79b;
+    text-shadow:0 0 18px #ff9c2ea6;animation:tapPulse 1.4s ease-in-out infinite}
+  #tapPlay small{font-size:.8em;font-weight:700;color:#a9c6db}
+  @keyframes tapPulse{0%,100%{transform:scale(1)}55%{transform:scale(1.13)}}
   #ctaWrap{width:100%;max-width:460px;margin-top:8px;display:flex;flex-direction:column;align-items:center}
   #ctaHint{font-size:clamp(12px,3.4vw,13.5px);font-weight:900;color:#ffd79b;margin-bottom:5px;
     animation:hintBob 1.5s ease-in-out infinite}
@@ -274,7 +283,7 @@
     50%{opacity:1;transform:scale(1) rotate(45deg)}}
   #ctaSub{margin-top:7px;font-size:clamp(10.5px,2.9vw,11.5px);color:#9db8cc;line-height:1.4}
   #ctaSub b{color:#e6f2fb}
-  @media (prefers-reduced-motion:reduce){ #ctaHint,#btnPlayGame,.spk,#ctaGlow:before{animation:none} }
+  @media (prefers-reduced-motion:reduce){ #ctaHint,#btnPlayGame,.spk,#ctaGlow:before,#tapPlay i{animation:none} }
   /* ---------- 엔딩 화면 ---------- */
   #ending{padding:20px 16px;
     background:linear-gradient(180deg,#04070fd9 0%,#050b16e6 45%,#04070ff5 100%),
@@ -435,8 +444,7 @@
   <!-- 인트로: 홍보영상 -->
   <div class="ov on" id="intro">
     <h2>퇴근까지 살아남기</h2>
-    <video id="promo" src="promo.mp4" playsinline controls autoplay muted preload="auto"></video>
-    <button id="btnSound">🔊 소리 켜기</button>
+    <div id="promoBox"><video id="promo" src="promo.mp4" playsinline controls autoplay muted preload="auto"></video><button id="tapPlay"><i>▶</i><span>🔊 소리 켜고 재생</span><small>화면을 한 번만 눌러 주세요</small></button></div>
     <div id="ctaWrap">
       <div id="ctaHint">👇 영상만 보지 마시고, 직접 해보세요</div>
       <div id="ctaGlow"><button class="btn" id="btnPlayGame"><i>🎮</i><span>즉시 플레이!</span><i class="arw">›</i></button><span class="spk a"></span><span class="spk b"></span><span class="spk c"></span><span class="spk d"></span></div>
@@ -1671,24 +1679,25 @@ document.getElementById('clockBox').addEventListener('click',()=>{
 
 /* ---------- 인트로(홍보영상) ---------- */
 (function(){
-  const iv=document.getElementById('intro'), vd=document.getElementById('promo'), sb=document.getElementById('btnSound');
+  const iv=document.getElementById('intro'), vd=document.getElementById('promo'),
+        tp=document.getElementById('tapPlay');
   const EV=['pointerdown','keydown','touchstart'];
   let first=null;
   const off=()=>{ if(first){ EV.forEach(e=>document.removeEventListener(e,first,true)); first=null; } };
-  const go=()=>{ off(); try{ vd.pause(); vd.muted=true; }catch(e){}
+  const go=()=>{ off(); tp.classList.remove('on');
+    try{ vd.pause(); vd.muted=true; }catch(e){}
     iv.classList.remove('on'); document.getElementById('start').classList.add('on'); };
-  const loud=()=>{ vd.muted=false; vd.volume=1; return vd.play(); };
-  // 소리를 켠 채로 바로 재생한다. 브라우저가 자동재생을 막으면 음소거로 틀어두고
-  // 첫 조작이 들어오는 순간 소리를 켜면서 처음으로 되감는다
-  loud().catch(()=>{
-    vd.muted=true; vd.play().catch(()=>{});
-    sb.style.display='inline-block';
+  const loud=()=>{ vd.muted=false; vd.volume=1; try{ vd.currentTime=0; }catch(e){} return vd.play(); };
+  // 소리를 켠 채로 바로 재생한다.
+  // 휴대폰처럼 자동재생이 막히는 곳에서는 0초에 세워 두고 탭 안내를 띄운 뒤,
+  // 첫 탭에서 소리를 켜고 처음부터 시작한다 (소리 없이 흘러가 버리지 않게)
+  loud().catch(function(){
+    try{ vd.pause(); vd.currentTime=0; }catch(e){}
+    vd.muted=true; tp.classList.add('on');
     first=function(e){
       if(e && e.target && e.target.closest && e.target.closest('#btnPlayGame')) return;
-      off();
-      if(vd.currentTime>0.2 && vd.currentTime<15) vd.currentTime=0;
-      loud().catch(()=>{});
-      sb.textContent='\uD83D\uDD0A 소리 켜짐';
+      off(); tp.classList.remove('on');
+      loud().catch(function(){ vd.muted=true; vd.play().catch(()=>{}); });
     };
     EV.forEach(e=>document.addEventListener(e,first,true));
   });
